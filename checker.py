@@ -1,45 +1,42 @@
 import os
 import requests
-from facebook_scraper import get_posts
+import feedparser
 
 DISCORD_WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 
-# 直接填入粉專的名稱或 ID
-# facebook-scraper 可以直接抓取公開粉專
-FACEBOOK_PAGES = [
-    ("Funbox 台中港3井", "61593044811347"),
+# 使用 RSSHub 的免費公共節點轉譯 FB 粉絲團
+# 格式為: https://rsshub.app/facebook/page/粉專ID
+PAGES = [
     ("Funbox 台中中友", "100063893358626"),
+    ("Funbox 台中港3井", "61593044811347"),
 ]
 
 def send_discord_alert(message):
-    if not DISCORD_WEBHOOK_URL:
-        return
-    requests.post(DISCORD_WEBHOOK_URL, json={"content": message})
+    if DISCORD_WEBHOOK_URL:
+        requests.post(DISCORD_WEBHOOK_URL, json={"content": message})
 
 def main():
-    print("開始使用開源套件抓取 FB 粉專...")
-    keywords = ["抽獎", "line", "LINE", "方格", "陀螺", "beyblade", "BEYBLADE", "追蹤", "Funbox"]
-
-    for store_name, page_id in FACEBOOK_PAGES:
-        try:
-            # 抓取該粉專最近的 3 篇貼文（完全免費）
-            posts = get_posts(page_id, pages=1, timeout=10)
+    print("開始監控粉絲團公告...")
+    
+    for name, page_id in PAGES:
+        # 使用 RSSHub 免費節點
+        url = f"https://rsshub.app/facebook/page/{page_id}"
+        feed = feedparser.parse(url)
+        
+        if not feed.entries:
+            print(f"無法取得 {name} 的資料")
+            continue
             
-            for post in posts:
-                text = post.get("text", "")
-                post_url = post.get("post_url", "")
-                
-                print(f"[{store_name}] 抓到貼文預覽: {text[:50]}...")
-
-                # 檢查關鍵字
-                if any(kw.lower() in text.lower() for kw in keywords):
-                    alert_msg = f"🚨 **【{store_name} 發現符合貼文！】**\n> {text[:150]}...\n🔗 網址：{post_url}"
-                    send_discord_alert(alert_msg)
-                    print(f"已發送 {store_name} 的通知！")
-                    break # 只抓最新符合的一篇
-                    
-        except Exception as e:
-            print(f"抓取 {store_name} 失敗: {e}")
+        # 抓取最新一篇文章
+        latest = feed.entries[0]
+        title = latest.title
+        link = latest.link
+        
+        # 為了避免重複發送，我們可以透過 GitHub Action 的 Cache 或簡單比較
+        # 這裡先發送通知讓你測試
+        alert_msg = f"📢 **【{name} 有新動態！】**\n標題：{title}\n🔗 請立即檢查 FB 或 LINE 記事本：{link}"
+        send_discord_alert(alert_msg)
+        print(f"已發送 {name} 的公告通知")
 
 if __name__ == "__main__":
     main()
