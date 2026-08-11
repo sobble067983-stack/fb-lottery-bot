@@ -1,2 +1,2 @@
 requests
-facebook-scraper
+feedparser
